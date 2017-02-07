@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Virtualee
+Comment=Client for eie-virtual site
+Exec=virtualee
+Terminal=false
+Type=Application
+Icon=/usr/share/pixmaps/logo_virtualee.png
+Categories=Internet;

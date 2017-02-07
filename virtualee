@@ -1,0 +1,429 @@
+#! /usr/bin/python2.7
+
+"""
+Desktop client to download material from eie-virtual site and keep track of recent changes
+    Copyright (C) 2017 Alexander Marin <alexanderm2230@gmail.com>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>
+"""
+
+import keyring
+import sys
+import json
+import os
+import requests
+import shutil
+from PyQt4.QtGui import *
+from PyQt4.QtCore import *
+import gui.Sign_In as sign_in_gui
+import gui.Virtualee as virtualee_gui
+import gui.Pref as pref
+import gui.About as about
+import lib.scrapeie as scrapeie
+import lib.verctrl as verctrl
+import lib.histdocs as histdocs
+
+conf_parent = os.path.join(os.environ['HOME'], ".virtualee")
+conf_path = os.path.join(conf_parent, "conf.json")
+default_conf_path = os.path.join(os.path.sep, 'usr', 'share', 'virtualee', 'conf.json')
+docs_history_path = os.path.join(conf_parent, "history.json")
+
+default_local_docs_name = "eie-virtual"
+default_local_docs_parent = os.environ['HOME']
+sign_in_img_path = os.path.join(os.path.sep, 'usr', 'share', 'virtualee', 'sign_in_img.png')
+about_img_path = os.path.join(os.path.sep, 'usr', 'share', 'virtualee', 'virtualee.png')
+
+
+#############################################################################
+#  methods for getting/setting config values
+def set_conf_val(name, value):
+    """
+    Assigs a particular value to a config parameter.
+    :param name: name of config parameter.
+    :param value: Value to be assigned to the parameter.
+    :return: None.
+    """
+    with open(conf_path, 'r') as conf_file:
+        config = json.load(conf_file)
+    config[name] = value
+    with open(conf_path, 'w') as conf_file:
+        json.dump(config, conf_file)
+
+
+def get_conf_val(name):
+    """
+    Returns value of a given parameter.
+    :param name: name of desired parameter.
+    :return: value of config parameter.
+    """
+    with open(conf_path, 'r') as conf_file:
+        config = json.load(conf_file)
+    return config[name]
+#############################################################################
+
+
+# Main window
+class VirtualeeWindow(QMainWindow, virtualee_gui.Ui_MainWindow):
+    def __init__(self, m, parent=None):
+        super(VirtualeeWindow, self).__init__(parent)
+        self.setupUi(self)
+        self.center()
+        self.mainv = m
+
+        # creates sign in dialog
+        self.sign_d = SignInDialog(m, self)
+
+        # attempts to sign in
+        if not self.mainv.log_in():
+            self.sign_d.show()
+        else:
+            self.show_main_w()  # then show main window of virtualee
+
+        # signals/slots
+        self.connect(self.sign_d, SIGNAL("logged"), self.show_main_w)
+        self.actionUpdate.triggered.connect(self.update_docs)
+        self.actionDownload_all.triggered.connect(self.download_all_docs)
+        self.actionSign_out.triggered.connect(self.sign_out)
+        self.actionAbout.triggered.connect(self.showabout)
+        self.actionPreferences.triggered.connect(self.chpref)
+        self.actionExit.triggered.connect(quit)
+        self.courses_list.currentItemChanged.connect(self.refresh_recent_list)
+        self.connect(self.clear_hist_btn, SIGNAL("clicked()"), self.clear_hist)
+
+        # used to show error messages
+        self.errbox = QErrorMessage()
+        self.errbox.setWindowTitle("Error")
+
+        # additional dialogs
+        self.ab = AboutDialog()
+        self.pref = PrefDialog()
+
+    def center(self):
+        """
+        Centers the main window.
+        :return: None.
+        """
+        frame_gm = self.frameGeometry()
+        screen = QApplication.desktop().screenNumber(QApplication.desktop().cursor().pos())
+        center_point = QApplication.desktop().screenGeometry(screen).center()
+        frame_gm.moveCenter(center_point)
+        self.move(frame_gm.topLeft())
+
+    def show_main_w(self):
+        """
+        Closes sign-in dialog and setups main window.
+        :return: None.
+        """
+        # resets sign in dialog
+        self.sign_d.close()
+        self.show()
+
+        # welcome message
+        self.statusbar.showMessage("Welcome {0}".format(self.mainv.fullname))
+        self.refresh_lists()
+
+    def refresh_lists(self):
+        """
+        Reloads contents of courses and recent-files lists.
+        :return: None.
+        """
+        # populates list of courses on main window
+        self.courses_list.clear()
+        self.mainv.vc.sce.get_course_list()
+        self.courses_list.addItem("All")
+        for c in self.mainv.vc.sce.name_courses:
+            self.courses_list.addItem(c)
+
+        # resize window given size of items, then show
+        self.courses_list.setMinimumWidth(self.courses_list.sizeHintForColumn(0))
+        self.courses_list.show()
+
+        # sets cursor and refresh recent files list
+        self.courses_list.setCurrentRow(0)
+        self.refresh_recent_list()
+
+    def refresh_recent_list(self):
+        """
+        Loads contents of recent-files list from history file.
+        :return: None.
+        """
+        if not self.courses_list.currentItem():
+            return
+        self.recent_files.clear()
+        selection_rlist = self.courses_list.currentItem().text()
+        selection_rlist = unicode(selection_rlist.toUtf8(), encoding="UTF-8")  # some course names have accent marks
+        if selection_rlist == "All":
+            # show recent files of all courses
+            hist_items = histdocs.get_entries('download_date')
+        else:
+            # show recent files of only selected course
+            hist_items = histdocs.get_entries('download_date', selection_rlist)
+
+        # last elements must be shown first
+        hist_items.reverse()
+
+        # adds all recent items to list
+        for hitem in hist_items:
+            self.recent_files.addItem(hitem['name'])
+
+    def clear_hist(self):
+        """
+        Erases history of selected course.
+        :return: None.
+        """
+        selection_rlist = self.courses_list.currentItem().text()
+        selection_rlist = unicode(selection_rlist.toUtf8(), encoding="UTF-8")  # some course names have accent marks
+        if selection_rlist == "All":
+            # delete recent history of all courses
+            histdocs.clear_hist('download_date')
+        else:
+            # delete recent history of only selected course
+            histdocs.clear_hist('download_date', selection_rlist)
+        # update list of main window
+        self.refresh_recent_list()
+
+    def update_docs(self):
+        """
+        Update local copy of files and updates recent-files list according to new changes
+        :return: None.
+        """
+        try:
+            self.mainv.vc.update_all(get_conf_val('local_eie'))
+            self.refresh_recent_list()
+        except requests.ConnectionError:
+            self.errbox.showMessage("Connection Error")
+
+    def download_all_docs(self):
+        """
+        Download all docs to the local copy, existent files are overwritten.
+        :return: None.
+        """
+        try:
+            self.mainv.vc.get_all(get_conf_val('local_eie'))
+        except requests.ConnectionError:
+            self.errbox.showMessage("Connection Error")
+
+    def sign_out(self):
+        """
+        Deletes pass/user and shows sign-in dialog.
+        :return: None.
+        """
+        # erase user and keyring
+        try:
+            keyring.delete_password("virtualee", get_conf_val('username'))
+        except keyring.errors.PasswordDeleteError as err:
+            None
+
+        # create new sign in dialog and wait for sign in
+        self.sign_d = SignInDialog(self.mainv)
+        self.connect(self.sign_d, SIGNAL("logged"), self.show_main_w)
+        self.hide()
+        self.sign_d.show()
+
+    def showabout(self):
+        """
+        Show about dialog.
+        :return: None.
+        """
+        self.ab.show()
+
+    def chpref(self):
+        """
+        Show preferences dialog.
+        :return: None.
+        """
+        self.pref.show()
+
+
+# Sign in dialog
+class SignInDialog(QDialog, sign_in_gui.Ui_SignInDialog):
+    def __init__(self, m, parent=None):
+        super(SignInDialog, self).__init__(parent)
+        self.setupUi(self)
+
+        # top image
+        self.image = QPixmap(sign_in_img_path)
+        self.sign_img_lab.setPixmap(self.image)
+
+        self.connect(self.signin_btn, SIGNAL("clicked()"), self.sign_in)
+        self.mainv = m
+
+    def sign_in(self):
+        """
+        Carries sign-in with user/pass given on dialog fields.
+        :return: None.
+        """
+        # values from dialog
+        self.mainv.username = str(self.user_ledit.text())
+        self.mainv.password = str(self.pass_ledit.text())
+
+        # checks for sign-in success
+        self.mainv.sce.set_cred(self.mainv.username, self.mainv.password)
+        if not self.mainv.log_in():
+            self.show()
+            self.warn_cred.setText("<font color='red'>Wrong username/password!</font>")
+        else:
+            # sign-in successful
+            if self.cb_remember.isChecked():
+                # if remember then save pass and user
+                keyring.set_password("virtualee", self.mainv.username, self.mainv.password)
+                set_conf_val('username', self.mainv.username)
+            # success, so emit signal and hide sign in dialog
+            self.hide()
+            self.emit(SIGNAL("logged"))
+
+
+# Dialog for setting preferences (refreshing time and path to save docs)
+class PrefDialog(QDialog, pref.Ui_Dialog):
+    def __init__(self, parent=None):
+        super(PrefDialog, self).__init__(parent)
+        self.setupUi(self)
+
+        self.local_docs_dir_parent = ""
+        self.local_docs_dir = ""
+
+        save_btn = self.pref_box.button(QDialogButtonBox.Save)
+        save_btn.clicked.connect(self.save_prefs)
+        cancel_btn = self.pref_box.button(QDialogButtonBox.Cancel)
+        cancel_btn.clicked.connect(self.cancel_prefs)
+
+        self.connect(self.choose_root, SIGNAL("clicked()"), self.select_dir)
+        self.load_current_prefs()
+
+        self.errbox = QErrorMessage()  # used to show error messages
+        self.errbox.setWindowTitle("Error")
+
+    def select_dir(self):
+        """
+        Let the user choose a destination directory for eie-virtual folder.
+        :return: None.
+        """
+        tmp_dir = str(QFileDialog.getExistingDirectory(self, "Select directory for course materials"))
+        if tmp_dir:
+            self.local_docs_dir_parent = tmp_dir
+            self.local_docs_dir_ledit.setText(os.path.join(tmp_dir, default_local_docs_name))
+
+    def save_prefs(self):
+        """
+        Saves the current fields of preferences dialog.
+        :return: None.
+        """
+        self.hide()
+        try:
+            # moves current eie-virtual folder to new destination
+            if self.local_docs_dir != os.path.join(self.local_docs_dir_parent, default_local_docs_name):
+                shutil.move(self.local_docs_dir, self.local_docs_dir_parent)
+        except shutil.Error as err:
+            self.errbox.showMessage(err.message)
+            self.load_current_prefs()
+            return
+
+        # store new config values
+        set_conf_val('check_time', self.minutes_spin.value())
+        set_conf_val('local_eie', os.path.join(self.local_docs_dir_parent, default_local_docs_name))
+        # load config values on dialog fields
+        self.load_current_prefs()
+
+    def cancel_prefs(self):
+        """
+        Ignores fields and hides preferences dialog.
+        :return: None.
+        """
+        self.load_current_prefs()
+        self.hide()
+
+    def load_current_prefs(self):
+        """
+        Loads config values onto dialog fields.
+        :return: None.
+        """
+        # set spin value from config
+        self.minutes_spin.setValue(get_conf_val('check_time'))
+        # set line edit(docs path) from config
+        self.local_docs_dir_ledit.setText(get_conf_val('local_eie'))
+        # update paths
+        self.local_docs_dir = get_conf_val('local_eie')
+        self.local_docs_dir_parent = os.path.split(self.local_docs_dir)[0]
+
+
+# Contact dialog
+class AboutDialog(QDialog, about.Ui_Dialog):
+    def __init__(self, parent=None):
+        super(AboutDialog, self).__init__(parent)
+        self.setupUi(self)
+
+        # top image
+        self.image = QPixmap(about_img_path)
+        self.virtualee_img.setPixmap(self.image)
+        # contact
+        self.info.setText("\nVirtualee 1.0\n\n"
+                            "If you find bugs, have comments or\n"
+                            " questions please send an email to\n"
+                            "virtualeecr@gmail.com\n"
+                            "\nAuthor:\n"
+                            "Alexander Marin Drobinoga\n")
+
+
+# Manages setup of necessary files and periodic refreshing of docs
+class MainVirtualee:
+
+    def __init__(self):
+        self.setup()  # creates config files
+        self.username = get_conf_val('username')
+        self.password = keyring.get_password('virtualee', self.username)
+        self.fullname = ""
+        self.sce = scrapeie.ScrapEie()
+        self.sce.set_cred(self.username, self.password)
+        self.vc = verctrl.VControl(self.sce)
+
+    def setup(self):
+        """
+        Creates config file and also download history file if they don't exist.
+        :return: None.
+        """
+        # if no config exists it must be created
+        if not os.path.exists(conf_parent):
+            os.makedirs(conf_parent)
+
+        if not os.path.isfile(conf_path):
+            shutil.copyfile(default_conf_path, conf_path)
+            # set default local copy dir
+            set_conf_val("local_eie", os.path.join(default_local_docs_parent, default_local_docs_name))
+
+        # if eie-virtual directory doesn't exist it must be created
+        curr_local_eie = get_conf_val('local_eie')
+        if not os.path.exists(curr_local_eie):
+            os.makedirs(curr_local_eie)
+
+        # create history file in case it doesnt exists
+        histdocs.setup_hist()
+
+    def log_in(self):
+        """
+        Signs in to eie-virtual site with a pass/user previously set.
+        :return: Boolean, True if sign-in was successful.
+        """
+        self.fullname = self.sce.log_in()
+        # full name of user is used to check if we are logged in
+        if self.fullname:
+            return True
+        else:
+            return False
+
+
+if __name__ == '__main__':
+    m = MainVirtualee()
+    app = QApplication(sys.argv)
+    main_d = VirtualeeWindow(m)
+    app.exec_()
