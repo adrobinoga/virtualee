@@ -12,7 +12,7 @@ May download all materials from website or just download materials that doesn't 
 # Installation
 Download repo
 
-$ wget https://github.com/adrobinoga/virtualee.git
+$ git clone https://github.com/adrobinoga/virtualee.git
 
 Install
 

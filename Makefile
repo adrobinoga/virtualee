@@ -4,3 +4,5 @@ build: dialogs
 dialogs:
 	cd gui; make gui
 
+install: build
+	cd deb_dist; sudo dpkg -i 
