@@ -18,6 +18,8 @@ Install
 
 $ cd virtualee
 
+$ sudo apt-get install pyqt4-dev-tools # need this to build
+
 $ make build
 
 Then .deb file is on deb_dist/
