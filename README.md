@@ -17,11 +17,13 @@ $ wget https://github.com/adrobinoga/virtualee.git
 Install
 
 $ cd virtualee
+
 $ make build
 
 Then .deb file is on deb_dist/
 
 $ cd deb_dist
+
 $ sudo dpkg -i python-virtualee_1.0-1_all.deb
 
 To uninstall 
