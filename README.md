@@ -18,7 +18,7 @@ Install
 
 $ cd virtualee
 
-$ sudo apt-get install pyqt4-dev-tools # need this to build
+$ sudo apt-get install pyqt4-dev-tools python-stdeb # need this to build
 
 $ make build
 
