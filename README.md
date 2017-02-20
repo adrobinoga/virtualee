@@ -3,6 +3,8 @@ Desktop client to keep track of docs on eie virtual site.
 
 Keeps a local copy of eie-virtual course materials on "~/eie-virtual", and when it updates the local copy, adds those events to a history file, in that way we may know if there is a recent added file, though this "recent files" may be not recent, but there is no easy way to check if docs in eie site are new. Also displays recent news from eie site and empleo-eie.
 
+# Installation
+Check for releases on <https://github.com/adrobinoga/virtualee/releases>
 
 # Getting Started
 Pyinstaller is used to build the executables, the build process must be performed from executable's target platform(Wine may help in Linux). Do it with a 32 bit system for better portability.
