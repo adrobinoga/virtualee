@@ -1,130 +1,97 @@
-import os
-import json
+import sqlite3
 
-"""
-history structure:
-
-{
-criteria0:
-        [ file_item0, file_item1 ... ]
-criteria1:
-        [ ... ]
-}
-
-file item:
-{name : ____, course : ____, date : ____}
-"""
-
-conf_parent = os.path.join(os.environ['HOME'], ".virtualee")
-hist_record_path = os.path.join(conf_parent, "history.json")
-
-criteria_keys = ['download_date', 'lastm_date']
-hist_record = {criteria_keys[0]: [], criteria_keys[1]: []}
-entry_keys = ['name', 'course_name', 'date']
+table_def = '(filename text, course text, date real)'
 
 
-def setup_hist():
-    """
-    Creates history file if necessary.
-    :return: None.
-    """
-    if not os.path.isfile(hist_record_path):
-        with open(hist_record_path, 'w') as f:
-            json.dump(hist_record, f)
+# Manages history database
+class HistMg:
+    def __init__(self, hist_record_path):
+        self.hist_record_path = hist_record_path
+        conn_hist = sqlite3.connect(self.hist_record_path)
+        cursor_hist = conn_hist.cursor()
 
+        # create table
+        sql_cmd = """
+        CREATE TABLE IF NOT EXISTS recent_files {0}
+        """.format(table_def)
 
-def add_entry(criteria, name, date, course_name):
-    """
-    Adds one file entry to history file.
-    :param criteria: criteria used for dates.
-    :param name: file name.
-    :param date: may be date of download or creation.
-    :param course_name: course name to which current file belongs.
-    :return: None.
-    """
-    e = Entry(name, course_name, date)
+        cursor_hist.execute(sql_cmd)
+        conn_hist.commit()
+        cursor_hist.close()
+        conn_hist.close()
 
-    with open(hist_record_path, 'r') as f:
-        hrec = json.load(f)
+    def add_entry(self, name, course_name, date):
+        """
+        Adds a new file-download entry to database.
+        :param name: Filename.
+        :param course_name: Course name.
+        :param date: Float, time since epoch.
+        :return: None
+        """
+        conn_hist = sqlite3.connect(self.hist_record_path)
+        cursor_hist = conn_hist.cursor()
 
-    if criteria in hrec:
-        hrec[criteria] += [e.get_entry()]
+        # adds entry
+        new_recent = [(name, course_name, date)]
+        cursor_hist.executemany("INSERT INTO recent_files VALUES (?,?,?)", new_recent)
+        conn_hist.commit()
 
-    with open(hist_record_path, 'w') as f:
-        json.dump(hrec, f)
+        cursor_hist.close()
+        conn_hist.close()
 
+    def get_entries(self, course_name=None):
+        """
+        Gets all file entries from one course or all entries if no course is specified.
+        :param course_name: course name.
+        :return: List of dictionaries, where every dictionary has the keys (filename, course, date).
+        """
+        conn_hist = sqlite3.connect(self.hist_record_path)
+        cursor_hist = conn_hist.cursor()
 
-def get_entries(criteria=None, course_name=None):
-    """
-    Get list of file entries from history file.
-    :param criteria: criteria for dates.
-    :param course_name: course name.
-    :return: list of file items from history file.
-    """
-    with open(hist_record_path, 'r') as f:
-        hrec = json.load(f)
-
-    if criteria:
         if course_name:
             # get all of one course
-            course_entries = []
-            for i in hrec[criteria]:
-                if i['course_name'] == course_name:
-                    course_entries += [i]
-            return course_entries
+            sql_cmd = u"SELECT * FROM recent_files WHERE course='{0}'".format(course_name)
+
         else:
-            # get all of one criteria
-            return hrec[criteria]
-    else:
-        # get all
-        all_entries = []
-        for k in criteria_keys:
-            all_entries += (get_entries(k))
-        return all_entries
+            # get all
+            sql_cmd = "SELECT * FROM recent_files"
 
+        cursor_hist.execute(sql_cmd)
 
-def clear_hist(criteria=None, course_name=None):
-    """
-    Erases all the file items in the history file with a given criteria and course name.
-    :param criteria: criteria for dates, may be download dates or modification dates.
-    :param course_name: course name.
-    :return: None.
-    """
-    with open(hist_record_path, 'r') as f:
-        hrec = json.load(f)
+        # gen list of dicts
+        fields_names = [description[0] for description in cursor_hist.description]
+        items = []
+        for i in cursor_hist.fetchall():
+            items += [dict(zip(fields_names, i))]
 
-    if criteria:
+        cursor_hist.close()
+        conn_hist.close()
+        return items
+
+    def clear_hist(self, course_name=None):
+        """
+        Erases file-download entries of one course or all entries if no course is specified.
+        :param course_name: course name.
+        :return: None
+        """
+        conn_hist = sqlite3.connect(self.hist_record_path)
+        cursor_hist = conn_hist.cursor()
+
         if course_name:
             # deletes all items from one course
-            n = 0
-            while n < len(hrec[criteria]):
-                if hrec[criteria][n]['course_name'] == course_name:
-                    hrec[criteria].remove(hrec[criteria][n])
-                else:
-                    n += 1
+            sql_cmd = u"""
+            DELETE FROM recent_files
+            WHERE course='{0}'
+            """.format(course_name)
 
         else:
-            # delete one criteria
-            while 0 != len(hrec[criteria]):
-                hrec[criteria].remove(hrec[criteria][0])
-    # delete all of one criteria
-    None
+            # delete all
+            sql_cmd = """
+                        DELETE FROM recent_files
+                        """
 
-    with open(hist_record_path, 'w') as f:
-        json.dump(hrec, f)
+        cursor_hist.execute(sql_cmd)
+        conn_hist.commit()
 
-
-# Represents one file download event
-class Entry:
-
-    def __init__(self, name, course_name, date):
-        self.name = name
-        self.course_name = course_name
-        self.date = date
-
-    def get_entry(self):
-        """
-        Gets all attributes of the entry as a dict.
-        :return: dictionary with the form {'name': <file name>, 'course_name': <course name>, 'date': <date>}
-        """
-        return dict(zip(entry_keys, [self.name, self.course_name, self.date]))
+        cursor_hist.close()
+        conn_hist.close()

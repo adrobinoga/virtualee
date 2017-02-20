@@ -8,6 +8,7 @@ urleie = "http://cursos.eie.ucr.ac.cr/"
 loginurl = "https://cursos.eie.ucr.ac.cr/claroline/auth/login.php"
 
 
+#############################################################################
 # Related to web-scrapping of eie-virtual site
 class ScrapEie:
     def __init__(self):
@@ -103,14 +104,15 @@ class ScrapEie:
 
             itemsize = itd[1].text
             # itemdate = itd[2].text
-            # process each item according to item type(icon), don't you like this? me neither
+
+            # process each item according to item type(icon)
             if "folder" in srcicon:
                 # if folder then add Node
                 node.add_node(verctrl.Node(name, itemtailurl))
                 self.get_material_list(node.dirs[-1].url, node.dirs[-1])
             elif "image" in srcicon:
-                itemtailurl = self.get_image_url(
-                    itemtailurl)  # cannot process as a regular file, need this intermediate step
+                # cannot process as a regular file, need this intermediate step
+                itemtailurl = self.get_image_url(itemtailurl)
                 node.add_file(verctrl.File(name, itemtailurl, itemsize, ""))
             else:
                 # everything else docx, pdfs, scripts ...
@@ -159,6 +161,161 @@ class ScrapEie:
                     self.log_in()
                 else:
                     raise requests.ConnectionError
+            else:
+                with open(dest, "wb") as dfile:
+                    copyfileobj(r.raw, dfile)
+                return
 
-        with open(dest, "wb") as dfile:
-            copyfileobj(r.raw, dfile)
+    def get_file_size(self, tailurldoc):
+        """
+        :param tailurldoc: last part of download url.
+        :return: Int, size in bytes.
+        """
+        tries = 0
+        while tries < 3:
+            try:
+                tries += 1
+                r = self.s.head(urleie + tailurldoc)
+
+            except requests.ConnectionError as err:
+                print err
+                if tries < 3:
+                    print "Trying to reconnect"
+                    self.log_in()
+                else:
+                    raise requests.ConnectionError
+            else:
+                return int(r.headers['Content-Length'])
+#############################################################################
+
+
+#############################################################################
+# Methods to turn relative urls given on ads, into absolute urls
+def get_absolute(root_url, url):
+    """
+    Receives a url and converts it to an absolute url using a given root url.
+    :param root_url:
+    :param url:
+    :return: Absolute url.
+    """
+    if '//' in url[:url.find(">")]:
+        return url
+    else:
+        return root_url + url
+
+
+def link_refact(ann, root_url):
+    """
+    Finds relative paths on a given ad, and makes those absolute, using a given root url.
+    :param ann: String, announcement to refactor.
+    :param root_url:
+    :return: String, announcement with absolute urls.
+    """
+    splited_ann = u'{0}'.format(ann).split("href=\"")
+
+    refactored_ann = ""
+    refactored_ann += splited_ann[0]
+    for n in range(1, len(splited_ann)):
+        splited_ann[n] = get_absolute(root_url, splited_ann[n])
+        refactored_ann += u"href=\"{0}".format(splited_ann[n])
+
+    return refactored_ann
+#############################################################################
+
+
+#############################################################################
+# Methods for scraping news from eie main page
+url_main_eie = "http://eie.ucr.ac.cr/"
+
+
+def get_anns():
+    """
+    Gets all the recent news from eie.ucr.ac.cr.
+    :return: Dictionary, where the keys are the announcement titles and values are the announcement contents.
+    """
+    s = requests.Session()
+
+    # get raw news from site
+    eieucr = s.get(url_main_eie)
+    soupeieucr = BeautifulSoup(eieucr.content, "lxml")
+    newsitems = soupeieucr.find_all("div", {"id": "news"})[0].find_all("div", {"class": "NewsSummary"})
+    news = {}
+
+    # process each ad
+    for n in newsitems:
+        # ad title
+        ann_title = n.find_all("div", {"class": "NewsSummaryLink"})[0]
+        # ad content
+        ann_content = link_refact(n.find_all("div", {"class": "NewsSummarySummary"})[0], url_main_eie)
+        # add notice to dict
+        news.update({ann_title: ann_content})
+    return news
+#############################################################################
+
+
+#############################################################################
+url_empleo = "http://empleo.eie.ucr.ac.cr"
+url_empleo_works = "http://empleo.eie.ucr.ac.cr/works"
+url_empleo_sol = "http://empleo.eie.ucr.ac.cr/session"
+
+
+# Scraps job ads from eie-empleo
+class ScrapEmpleo:
+
+    def __init__(self):
+        self.s = requests.Session()
+        self.get_job_anns()
+        self.username = ""
+        self.password = ""
+
+    def set_creds(self, username, password):
+        """
+        Sets credentials.
+        :param username:
+        :param password:
+        :return: None.
+        """
+        self.username = username
+        self.password = password
+
+    def log_in(self):
+        """
+        Log in to eie-empleo site, given a previously set credentials.
+        :return:
+        """
+        r = self.s.get(url_empleo)
+        soup = BeautifulSoup(r.content, "lxml")
+
+        # get login form
+        hidden_inputs = soup.find_all("input")
+        form = {x.get("name"): x.get("value") for x in hidden_inputs}
+
+        # tries to log in
+        form['login'] = self.username
+        form['password'] = self.password
+        self.s.post(url_empleo_sol, form)
+
+        # checks for login success
+        r = self.s.get(url_empleo)
+        empleo_html = BeautifulSoup(r.content, "lxml")
+        if "Logeado como:" in empleo_html.text:
+            return True
+        else:
+            print "Couldn't log in to " + url_empleo
+            return False
+
+    def get_job_anns(self):
+        """
+        Gets all the recent job ads.
+        :return: List of strings, where each string is an add with html formatting.
+        """
+        r = self.s.get(url_empleo_works)
+        empleo_html = BeautifulSoup(r.content, "lxml")
+        newsitems = empleo_html.find_all("div", {"class": "title_notice"})
+
+        anns = []
+        for n in newsitems:
+            anns += [link_refact(n.a, url_empleo)]
+        return anns
+#############################################################################
+

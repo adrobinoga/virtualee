@@ -1,14 +1,15 @@
 import os
 from datetime import datetime
-import lib.histdocs as histdocs
 
 
+#############################################################################
 # Related to version control methods(cloud copy vs local copy)
 class VControl:
 
-    def __init__(self, sce):
+    def __init__(self, sce, hmg):
         self.cloud_trees = []
         self.sce = sce
+        self.hmg = hmg
 
     def gen_local_tree(self, rootdir):
         """
@@ -40,94 +41,71 @@ class VControl:
                     node.add_node(Node(elem, ""))
                     self.get_local_docs(elem_path, node.dirs[-1])
 
-    def update_all(self, dest):
+    def estimate_size(self, dest):
         """
-        Updates local copy of all courses.
-        :param dest: path to local copy.
-        :return: None.
+        Estimates total size of update.
+        :param dest: Path to local copy of materials.
+        :return: Int, amount of bytes.
         """
         self.sce.get_course_list()
-        # update each course
+        cloud_trees = []
+
+        size = 0
+        # inspect each course
         for c in self.sce.nameurl_courses:
             # parse cloud course materials
-            self.cloud_trees.append(self.sce.gen_cloud_tree(c, self.sce.nameurl_courses[c]))
-            # update local copy of one course
-            self.update_local_docs(dest, self.cloud_trees[-1], c)
-        print "Update done"
+            cloud_trees.append(self.sce.gen_cloud_tree(c, self.sce.nameurl_courses[c]))
+            # estimate download size for each course
+            size += self.estimate_size_tree(dest, cloud_trees[-1])
+        return size
 
-    def update_local_docs(self, dest, cloud_node, course_name):
+    def estimate_size_tree(self, dest, cloud_node):
         """
-        Updates local copy of course materials.
-        :param course_name: coures name.
-        :param dest: parent directory path.
-        :param cloud_node: Node object, made with found materials in eie-virtual site.
-        :return: None.
+        Estimates size of download for one course.
+        :param dest: Path to local copy.
+        :param cloud_node: Representation of materials on eie-virtual site for one course.
+        :return: Int, size given in bytes.
         """
         current_path = os.path.join(dest, cloud_node.name)
+        size = 0
         # checks if current directory exist
         if not os.path.exists(current_path):
-            os.makedirs(current_path)
-            # then downloads all materials
             for f in cloud_node.files:
-                self.sce.download_file(f.url, os.path.join(current_path, f.name))
-                self.add2hist(f.name, "", course_name)
+                size += self.sce.get_file_size(f.url)
+
         else:
-            # downloads materials in case don't exist in current copy
+            # files of current tree level
             for f in cloud_node.files:
                 curr_file_path = os.path.join(current_path, f.name)
+
+                # include size of files when they don't exist on local copy or differ in size
                 if not os.path.isfile(curr_file_path):
-                    print "Updating ", f.name
-                    self.sce.download_file(f.url, curr_file_path)
-                    self.add2hist(f.name, "", course_name)
+                    size += self.sce.get_file_size(f.url)
+                else:
+                    cloud_file_size = self.sce.get_file_size(f.url)
+                    local_file_size = int(os.stat(curr_file_path).st_size)
+                    if cloud_file_size != local_file_size:
+                        size += self.sce.get_file_size(f.url)
 
         # does the same for next level of subdirectories
         for node in cloud_node.dirs:
-            self.update_local_docs(current_path, node, course_name)
+            size += self.estimate_size_tree(current_path, node)
+        return size
 
-    def add2hist(self, name, date, course_name):
+    def add2hist(self, name, course_name, date):
         """
         Adds an entry to download history.
         :param name: name of file.
-        :param date: date of download.
+        :param date: Float, date of download, time since epoch.
         :param course_name: course name to which it belongs.
         :return: None.
         """
-        histdocs.add_entry('download_date', name=name, date=date, course_name=course_name)
+        self.hmg.add_entry(name=name, course_name=course_name, date=date)
 
-    def get_all(self, dest):
-        """
-        Download all course materials from all courses.
-        :param dest: path of local copy.
-        :return: None
-        """
-        # parse info of cloud
-        for c in self.sce.nameurl_courses:
-            self.cloud_trees.append(self.sce.gen_cloud_tree(c, self.sce.nameurl_courses[c]))
-        # download all from cloud
-        for t in self.cloud_trees:
-            self.download_tree(t, dest)
-
-    def download_tree(self, node, dest):
-        """
-        Downloads all contents, level by level.
-        :param node: Node object with info of cloud materials.
-        :param dest: parent directory of where to save materials.
-        :return: None.
-        """
-        curr_path = os.path.join(dest, node.name)  # forms current path
-        # if doesn't exist, it must be created
-        if not os.path.exists(curr_path):
-            os.makedirs(curr_path)
-
-        # download all files
-        for f in node.files:
-            self.sce.download_file(f.url, os.path.join(curr_path, f.name))
-
-        # step down one folder level (recursion)
-        for d in node.dirs:
-            self.download_tree(d, curr_path)
+#############################################################################
 
 
+#############################################################################
 # Represents a directory and its contents, folders as Node Objects and files as File objects
 class Node:
     def __init__(self, name, itemurl):
@@ -164,8 +142,10 @@ class Node:
         for d in self.dirs:
             str_files += d.show(ntabs+1)
         return str_files
+#############################################################################
 
 
+#############################################################################
 # Represents a file(pdf, docx, jpg, png ...)
 class File:
 
@@ -174,3 +154,4 @@ class File:
         self.url = url
         self.date = date
         self.size = size
+#############################################################################

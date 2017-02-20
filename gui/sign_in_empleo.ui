@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>SignInDialog</class>
- <widget class="QDialog" name="SignInDialog">
+ <class>SignInEmpleoDialog</class>
+ <widget class="QDialog" name="SignInEmpleoDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>361</width>
-    <height>438</height>
+    <width>256</width>
+    <height>210</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -17,7 +17,7 @@
    </sizepolicy>
   </property>
   <property name="windowTitle">
-   <string>Virtualee-Sign in</string>
+   <string>Virtualee-Empleo sign in </string>
   </property>
   <property name="windowIcon">
    <iconset resource="icons.qrc">
@@ -26,26 +26,16 @@
   <property name="sizeGripEnabled">
    <bool>false</bool>
   </property>
+  <property name="modal">
+   <bool>true</bool>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout_2">
    <property name="sizeConstraint">
-    <enum>QLayout::SetMaximumSize</enum>
+    <enum>QLayout::SetDefaultConstraint</enum>
    </property>
    <item>
     <layout class="QGridLayout" name="gridLayout">
-     <item row="0" column="0" alignment="Qt::AlignHCenter">
-      <widget class="QLabel" name="sign_img_lab">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="text">
-        <string>TextLabel</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
+     <item row="2" column="0">
       <widget class="QLineEdit" name="user_ledit">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -55,7 +45,7 @@
        </property>
       </widget>
      </item>
-     <item row="7" column="0">
+     <item row="6" column="0">
       <widget class="QPushButton" name="signin_btn">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -68,35 +58,47 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="0" alignment="Qt::AlignLeft">
+     <item row="1" column="0" alignment="Qt::AlignLeft">
       <widget class="QLabel" name="label">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="text">
         <string>username</string>
        </property>
       </widget>
      </item>
-     <item row="4" column="0" alignment="Qt::AlignLeft">
+     <item row="3" column="0" alignment="Qt::AlignLeft">
       <widget class="QLabel" name="label_2">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
        <property name="text">
         <string>password</string>
        </property>
       </widget>
      </item>
-     <item row="6" column="0" alignment="Qt::AlignLeft">
+     <item row="5" column="0" alignment="Qt::AlignLeft">
       <widget class="QCheckBox" name="cb_remember">
        <property name="text">
         <string>Remember me</string>
        </property>
       </widget>
      </item>
-     <item row="5" column="0">
+     <item row="4" column="0">
       <widget class="QLineEdit" name="pass_ledit">
        <property name="echoMode">
         <enum>QLineEdit::Password</enum>
        </property>
       </widget>
      </item>
-     <item row="1" column="0">
+     <item row="0" column="0">
       <widget class="QLabel" name="warn_cred">
        <property name="text">
         <string/>

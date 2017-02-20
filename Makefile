@@ -1,8 +1,8 @@
 build: dialogs
-	python setup.py --command-packages=stdeb.command bdist_deb
+	pyinstaller virtualee_pkg.spec
 
 dialogs:
 	cd gui; make gui
 
-install: build
-	cd deb_dist; sudo dpkg -i 
+clean:
+	rm -rf build dist 

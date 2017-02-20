@@ -1,9 +1,9 @@
-gui : 
-	pyuic4 virtualee.ui -o Virtualee.py
-	pyuic4 sign_in.ui -o Sign_In.py
-	pyuic4 pref.ui -o Pref.py
-	pyuic4 about.ui -o About.py
-	pyrcc4 icons.qrc -o icons_rc.py
+gui: 
+	pyside-uic virtualee.ui -o Virtualee.py
+	pyside-uic sign_in.ui -o Sign_In.py
+	pyside-uic pref.ui -o Pref.py
+	pyside-uic about.ui -o About.py
+	pyside-uic download_progress.ui -o Download_Progress.py
+	pyside-uic sign_in_empleo.ui -o Sign_In_Empleo.py
+	pyside-rcc icons.qrc -o icons_rc.py
 
-clean:
-	rm *.pyc

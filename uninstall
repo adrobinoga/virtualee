@@ -1,0 +1,3 @@
+#!/bin/bash
+rm -rf ~/.virtualee ~/.local/share/icons/logo_virtualee.png ~/.local/share/applications/virtualee.desktop
+
