@@ -25,6 +25,8 @@ $ sudo apt-get install pyside-tools
 
 Then we are ready to freeze the app
 
+$ sudo apt-get install pyqt4-dev-tools python-stdeb # need this to build
+
 $ make build
 
 This step actually parses ui files to py and then runs pyinstaller.
@@ -75,3 +77,4 @@ Alexander Marin <alexanderm2230@gmail.com>
 # License
 
 This project is licensed under the GNU GENERAL PUBLIC LICENSE Version 3
+
