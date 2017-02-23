@@ -64,14 +64,16 @@ def path_rc(relative_path):
     return relative_path
 
 
-# form path of gui images and conf file
-about_img_path = path_rc(os.path.join('gui', 'virtualee.png'))
-sign_in_img_path = path_rc(os.path.join('gui', 'sign_in_img.png'))
-default_conf_path = path_rc('conf.json')
+
 
 # Path definitions according to platform
 if os.name == 'nt':
     # windows
+    # form path of gui images and conf file
+    about_img_path = path_rc(os.path.join('gui', 'virtualee.png'))
+    sign_in_img_path = path_rc(os.path.join('gui', 'sign_in_img.png'))
+    default_conf_path = path_rc('conf.json')
+
     conf_parent = os.path.join(os.environ['APPDATA'], "Virtualee")
     conf_path = os.path.join(conf_parent, "conf.json")
     hist_record_path = os.path.join(conf_parent, 'history.db')
@@ -81,6 +83,13 @@ if os.name == 'nt':
 
 elif os.name == 'posix':
     # linux
+    # form path of gui images and conf file
+    cur_path = os.path.dirname(os.path.abspath(__file__))
+
+    about_img_path = os.path.join(cur_path, 'gui', 'virtualee.png')
+    sign_in_img_path = os.path.join(cur_path, 'gui', 'sign_in_img.png')
+    default_conf_path = os.path.join(cur_path, 'conf.json')
+
     conf_parent = os.path.join(os.environ['HOME'], ".virtualee")
     conf_path = os.path.join(conf_parent, "conf.json")
     hist_record_path = os.path.join(conf_parent, 'history.db')
@@ -93,9 +102,9 @@ elif os.name == 'posix':
         cur_path = sys.executable
         logo_path = path_rc(os.path.join('gui', 'icons', 'logo_virtualee.png'))
         # create/update desktop file
-        import setup_launcher
+        # import setup_launcher
 
-        setup_launcher.update_launcher(cur_path, logo_path)
+        # setup_launcher.update_launcher(cur_path, logo_path)
 
 else:
     print "Not supported system"
@@ -516,10 +525,10 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         self.connect(self.update_thread, SIGNAL("setfinalsize(int)"), self.set_max_progress)  # set max of progress bar
         self.connect(self.down_diag.stop_down_btn, SIGNAL("clicked()"),
                      self.terminating_download)  # stops current update
+        self.connect(self.down_diag, SIGNAL("stop_update()"), self.terminating_download)
         self.connect(self.update_thread, SIGNAL("finished()"), self.update_done)  # tells when update thread completes
         self.connect(self.down_diag.close_diag_btn, SIGNAL("clicked()"), self.down_diag.close)  # close dialog
         self.update_thread.signal_text.connect(self.add_line)  # add text to text browser
-
         self.update_thread.start()
 
     def update_done(self):
@@ -529,6 +538,7 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         """
         self.down_diag.stop_down_btn.setEnabled(False)
         self.down_diag.close_diag_btn.setEnabled(True)
+        self.refresh_lists()
 
     def terminating_download(self):
         """
@@ -638,7 +648,6 @@ class UpdateDocsThread(QThread, Virtualee):
             # calculates total bytes to download
             self.finalsize = self.vc.estimate_size(get_conf_val('local_eie'))
             self.emit(SIGNAL('setfinalsize(int)'), self.finalsize)
-
             self.size = 0
             if self.finalsize:
                 self.update_all(get_conf_val('local_eie'))
@@ -902,6 +911,16 @@ class DownloadDialog(QDialog, down_prog.Ui_Dialog):
     def __init__(self, parent=None):
         super(DownloadDialog, self).__init__(parent)
         self.setupUi(self)
+
+    def closeEvent(self, event):
+        """
+        Emits signal to indicate that current update must be stopped.
+        :param event:
+        :return: None.
+        """
+        self.emit(SIGNAL("stop_update()"))
+        event.accept()
+
 #############################################################################
 
 
@@ -920,7 +939,7 @@ class AboutDialog(QDialog, about.Ui_Dialog):
                           "If you find bugs, have comments or\n"
                           " questions please send an email to\n"
                           "virtualeecr@gmail.com\n"
-                          "I'll be grateful to any suggestions, except ones of changing that logo :v\n"
+                          "I'll be grateful to any suggestions, except ones about changing that logo :v\n"
                           "\nAuthor:\n"
                           "Alexander Marin Drobinoga\n"
                           "\nLicensed under GPLv3\n")
