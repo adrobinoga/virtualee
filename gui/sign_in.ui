@@ -28,7 +28,7 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_2">
    <property name="sizeConstraint">
-    <enum>QLayout::SetMaximumSize</enum>
+    <enum>QLayout::SetFixedSize</enum>
    </property>
    <item>
     <layout class="QGridLayout" name="gridLayout">
