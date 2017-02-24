@@ -4,38 +4,50 @@ Desktop client to keep track of docs on eie virtual site.
 Keeps a local copy of eie-virtual course materials on "~/eie-virtual", and when it updates the local copy, adds those events to a history file, in that way we may know if there is a recent added file, though this "recent files" may be not recent, but there is no easy way to check if docs in eie site are new. Also displays recent news from eie site and empleo-eie.
 
 # Installation
-Check for releases on <https://github.com/adrobinoga/virtualee/releases>
+Check for releases in <https://github.com/adrobinoga/virtualee/releases>
 
 # Getting Started
-Pyinstaller is used to build the executables, the build process must be performed from executable's target platform(Wine may help in Linux). Do it with a 32 bit system for better portability.
+Stdeb is used to generate a debian package and
+Pyinstaller is used to build executables for nt systems, the build process must be performed in executable's target platform(Do it with a 32 bit system for better portability).
 
 
 ## Linux
 
 ### Prerequisites
-First, we must install all the packages needed to get the program running without frezeeing it.
 
-$ sudo apt-get install python-pip
+$ sudo apt-get install python-pip pyside-tools
 
-$ pip install requests keyring pyside bs4
+$ pip install keyring requests pyside bs4
+
+Parse ui files with
+
+$ make dialogs
+
+Then you may run it with
+
+$ ./virtualee.py
+
+Note: virtualee file is used for deb package.
 
 ### Build
 
-$ sudo apt-get install pyside-tools
+To generate deb package install python-stdeb
 
-Then we are ready to freeze the app
+$ sudo apt-get install python-stdeb
 
-$ sudo apt-get install pyqt4-dev-tools python-stdeb # need this to build
+Then build
 
 $ make build
 
-This step actually parses ui files to py and then runs pyinstaller.
+This step actually parses ui files to py and then runs bdist_deb commant to generate the debian package.
 
-This will generate a Linux executable on dist folder.
+deb package will be in deb_dist folder.
+
 
 ## Windows
 
 ### Prerequisites
+
 First we must install all the packages needed to get the program running without frezeeing it.
 
 Get python2.7(Set add-to-Path option!) from 
@@ -50,17 +62,29 @@ Then install lxml(lxml‑3.7.2‑cp27‑cp27m‑win32.whl) from
 
 <http://www.lfd.uci.edu/~gohlke/pythonlibs/>
 
+Before parsing ui files, you need to install GnuWin and add make path to the Path variable.
+
+And must append the following path to Path variable
+
+C:\Python27\Lib\site-packages\PySide
+
+Then parse ui files
+
+\> cd gui
+
+\> make dialogs
+
+Now you may run the program with
+
+\> virtualee.py
 
 ### Build
-Assuming that our folder is shared and that we generated the gui files previously on a Linux system, with:
 
-$make dialogs
-
-We may skip to freezeing the app, first we need to install pyinstaller:
+First we need to install pyinstaller
 
 \> pip install pyinstaller
 
-Then freeze the app:
+Then freeze the app
 
 \> pyinstaller virtualee_pkg.spec
 
@@ -72,7 +96,7 @@ This will generate an Windows executable on dist folder.
 
 # Author
 
-Alexander Marin <alexanderm2230@gmail.com>
+Alexander Marin Drobinoga <alexanderm2230@gmail.com>
 
 # License
 

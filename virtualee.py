@@ -97,14 +97,14 @@ elif os.name == 'posix':
     default_local_docs_name = "eie-virtual"
     default_local_docs_parent = os.environ['HOME']
 
-    if getattr(sys, 'frozen', False):
-        # is running in bundle
-        cur_path = sys.executable
-        logo_path = path_rc(os.path.join('gui', 'icons', 'logo_virtualee.png'))
-        # create/update desktop file
-        # import setup_launcher
-
-        # setup_launcher.update_launcher(cur_path, logo_path)
+    # if getattr(sys, 'frozen', False):
+    #     # is running in bundle
+    #     cur_path = sys.executable
+    #     logo_path = path_rc(os.path.join('gui', 'icons', 'logo_virtualee.png'))
+    #     # create/update desktop file
+    #     import setup_launcher
+    #
+    #     setup_launcher.update_launcher(cur_path, logo_path)
 
 else:
     print "Not supported system"
@@ -219,6 +219,11 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         # creates sign in dialog for eie virtual
         self.sign_d = SignInDialog(self)
 
+        # additional dialogs
+        self.ab = AboutDialog(self)
+        self.pref = PrefDialog(self)
+        self.down_diag = DownloadDialog(self)
+
         # attempts to sign in
         if not self.log_in():
             self.sign_d.show()
@@ -238,14 +243,20 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         self.courses_list.currentItemChanged.connect(self.refresh_recent_list)
         self.tabWidget.currentChanged.connect(self.updatetabs)  # tells when current news tab is changed
 
+        # signals/slots
+        self.connect(self.update_thread, SIGNAL("setsize(int)"), self.set_current_progress)  # set current progress
+        self.connect(self.update_thread, SIGNAL("setfinalsize(int)"), self.set_max_progress)  # set max of progress bar
+        self.connect(self.down_diag.stop_down_btn, SIGNAL("clicked()"),
+                     self.terminating_download)  # stops current update
+        self.connect(self.down_diag, SIGNAL("stop_update()"), self.terminating_download)
+        self.connect(self.update_thread, SIGNAL("finished()"), self.update_done)  # tells when update thread completes
+        self.connect(self.down_diag.close_diag_btn, SIGNAL("clicked()"), self.down_diag.close)  # close dialog
+        self.update_thread.signal_text.connect(self.add_line)  # add text to text browser
+
+
         # used to show error messages
         self.errbox = QErrorMessage()
         self.errbox.setWindowTitle("Error")
-
-        # additional dialogs
-        self.ab = AboutDialog(self)
-        self.pref = PrefDialog(self)
-        self.down_diag = DownloadDialog(self)
 
     def done_empleo_log(self):
         """
@@ -520,15 +531,6 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         self.down_diag.progressBar.show()
         self.down_diag.update_info.clear()
 
-        # signals/slots
-        self.connect(self.update_thread, SIGNAL("setsize(int)"), self.set_current_progress)  # set current progress
-        self.connect(self.update_thread, SIGNAL("setfinalsize(int)"), self.set_max_progress)  # set max of progress bar
-        self.connect(self.down_diag.stop_down_btn, SIGNAL("clicked()"),
-                     self.terminating_download)  # stops current update
-        self.connect(self.down_diag, SIGNAL("stop_update()"), self.terminating_download)
-        self.connect(self.update_thread, SIGNAL("finished()"), self.update_done)  # tells when update thread completes
-        self.connect(self.down_diag.close_diag_btn, SIGNAL("clicked()"), self.down_diag.close)  # close dialog
-        self.update_thread.signal_text.connect(self.add_line)  # add text to text browser
         self.update_thread.start()
 
     def update_done(self):
@@ -586,11 +588,14 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         try:
             keyring.delete_password("eie-virtual", get_conf_val('username'))
             set_conf_val('username', '')
+            self.sce.set_cred("", "")
+        except keyring.errors.PasswordDeleteError as err:
+            None
+
+        try:
             keyring.delete_password("eie-empleo", get_conf_val('username_empleo'))
             set_conf_val('username_empleo', '')
-            self.sce.set_cred("", "")
             self.seie_empleo.set_creds("", "")
-
         except keyring.errors.PasswordDeleteError as err:
             None
 
@@ -644,6 +649,7 @@ class UpdateDocsThread(QThread, Virtualee):
         Begins material update process.
         :return: None.
         """
+        self.stopflg = False
         try:
             # calculates total bytes to download
             self.finalsize = self.vc.estimate_size(get_conf_val('local_eie'))
@@ -685,7 +691,11 @@ class UpdateDocsThread(QThread, Virtualee):
             # update local copy of one course
             self.update_local_docs(dest, cloud_trees[-1], c)
 
-        text_output = u"Update done"
+        if self.stopflg:
+            text_output = "Update interrupted"
+        else:
+            text_output = "Update done"
+
         self.signal_text.emit(text_output)
 
     def update_local_docs(self, dest, cloud_node, course_name):
@@ -939,7 +949,7 @@ class AboutDialog(QDialog, about.Ui_Dialog):
                           "If you find bugs, have comments or\n"
                           " questions please send an email to\n"
                           "virtualeecr@gmail.com\n"
-                          "I'll be grateful to any suggestions, except ones about changing that logo :v\n"
+                          "I'll be grateful to any suggestions, except those about changing that logo :v\n"
                           "\nAuthor:\n"
                           "Alexander Marin Drobinoga\n"
                           "\nLicensed under GPLv3\n")

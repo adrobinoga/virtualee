@@ -1,5 +1,5 @@
 build: dialogs
-	pyinstaller virtualee_pkg.spec
+	python setup.py --command-packages=stdeb.command bdist_deb
 
 dialogs:
 	cd gui; make gui
