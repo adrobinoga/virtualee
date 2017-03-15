@@ -251,6 +251,7 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionReset_messages"/>
     <addaction name="actionAbout"/>
    </widget>
    <addaction name="menuFile"/>
@@ -323,6 +324,11 @@
   <action name="actionDownload_all">
    <property name="text">
     <string>Download all(slow)</string>
+   </property>
+  </action>
+  <action name="actionReset_messages">
+   <property name="text">
+    <string>Reset messages</string>
    </property>
   </action>
  </widget>

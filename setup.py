@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='virtualee',
-      version='2.0',
+      version='2.1',
       description='Client for eie-virtual site',
       author='Alexander Marin',
       author_email='alexanderm2230@gmail.com',

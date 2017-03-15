@@ -148,7 +148,7 @@ class ScrapEie:
         :param dest: destination path, where to save the file.
         :return: None.
         """
-        print "Downloading ", dest.split(os.sep)[-1]
+        print "Downloading: ", dest.split(os.sep)[-1]
         tries = 0
         while tries < 3:
             try:
@@ -157,13 +157,17 @@ class ScrapEie:
             except requests.ConnectionError as err:
                 print err
                 if tries < 3:
-                    print "trying to reconnect"
+                    print "Trying to reconnect"
                     self.log_in()
                 else:
                     raise requests.ConnectionError
             else:
-                with open(dest, "wb") as dfile:
-                    copyfileobj(r.raw, dfile)
+                if r.status_code == 200:
+                    with open(dest, 'wb') as dfile:
+                        for chunk in r:
+                            dfile.write(chunk)
+                else:
+                    print "Couldn't download:", dest.split(os.sep)[-1]
                 return
 
     def get_file_size(self, tailurldoc):
@@ -309,7 +313,7 @@ class ScrapEmpleo:
         Gets all the recent job ads.
         :return: List of strings, where each string is an add with html formatting.
         """
-        r = self.s.get(url_empleo_works)
+        r = self.s.get(url_empleo_works, timeout=5)
         empleo_html = BeautifulSoup(r.content, "lxml")
         newsitems = empleo_html.find_all("div", {"class": "title_notice"})
 

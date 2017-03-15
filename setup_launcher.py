@@ -17,7 +17,7 @@ def update_launcher(exe_path, path_logo):
         """
 [Desktop Entry]
 Name=Virtualee
-Version=2.0
+Version=2.1
 Comment=Client for eie-virtual site
 Exec={0}
 Terminal=false

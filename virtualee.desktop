@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Virtualee
-Version=2.0
+Version=2.1
 Comment=Client for eie-virtual site
 Exec=virtualee
 Terminal=false

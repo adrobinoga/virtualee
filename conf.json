@@ -2,5 +2,6 @@
   "username": "",
   "username_empleo": "",
   "local_eie": "",
-  "check_time": 20
+  "check_time": 20,
+  "dont_check_release": ""
 }

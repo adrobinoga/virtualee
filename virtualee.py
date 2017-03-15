@@ -33,10 +33,13 @@ import gui.Sign_In_Empleo as sign_in_empleo_gui
 import gui.Virtualee as virtualee_gui
 import gui.Pref as pref
 import gui.About as about
+import gui.Release_Available as release
 import gui.Download_Progress as down_prog
 import lib.scrapeie as scrapeie
 import lib.verctrl as verctrl
 import lib.histdocs as histdocs
+
+current_release = u'v2.1'  # must be updated in every release
 
 #############################################################################
 # needed to show icon on taskbar on Windows 7 
@@ -152,7 +155,23 @@ def get_conf_val(name):
             json.dump(config, conf_file)
 
     return config[name]
+#############################################################################
 
+
+#############################################################################
+# Check for last release
+
+last_release_url = 'https://api.github.com/repos/adrobinoga/virtualee/releases'
+
+
+def get_last_release():
+    """
+    Gets tag of last release on Github.
+    :return: String, tag of last release.
+    """
+    rs = requests.get(last_release_url).json()
+    last_release = rs[0]['tag_name']
+    return last_release
 
 #############################################################################
 
@@ -238,6 +257,7 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         self.actionSign_out.triggered.connect(self.sign_out)  # sign out
         self.actionAbout.triggered.connect(self.showabout)  # show about window
         self.actionPreferences.triggered.connect(self.chpref)  # show preference editor
+        self.actionReset_messages.triggered.connect(self.reset_msgs)  # resets don't show again messages
         self.actionExit.triggered.connect(sys.exit)  # exit program
         # tells when a different course is selected
         self.courses_list.currentItemChanged.connect(self.refresh_recent_list)
@@ -257,6 +277,25 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         # used to show error messages
         self.errbox = QErrorMessage()
         self.errbox.setWindowTitle("Error")
+
+        # check for last release
+        try:
+            self.last_release_tag = get_last_release()
+            # if is different from current and is not disabled by config, then show message
+            if self.last_release_tag != current_release and \
+                            self.last_release_tag != get_conf_val('dont_check_release'):
+
+                msg =   u"New version {0} is available " \
+                        u"<a href='https://github.com/adrobinoga/virtualee/releases'>here</a>"\
+                        .format(self.last_release_tag)
+
+                self.new_rs_diag = ReleaseDialog()
+                self.new_rs_diag.set_msg(msg)
+                self.new_rs_diag.show()
+                self.connect(self.new_rs_diag.btn_close_release_diag,
+                             SIGNAL("clicked()"), self.closed_release_diag)
+        except:
+            print "Couldn't check for new versions"
 
     def done_empleo_log(self):
         """
@@ -631,6 +670,22 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         else:
             return False
 
+    def closed_release_diag(self):
+        """
+        Saves current last-release tag, in config file.
+        :return: None.
+        """
+        if self.new_rs_diag.chbox_msg_release.isChecked():
+            set_conf_val('dont_check_release', self.last_release_tag)
+        self.new_rs_diag.close()
+
+    def reset_msgs(self):
+        """
+        Resets dont-show-again windows.
+        :return: None.
+        """
+        set_conf_val('dont_check_release', '')
+        
 #############################################################################
 
 
@@ -685,7 +740,7 @@ class UpdateDocsThread(QThread, Virtualee):
         # update each course
         for c in self.vc.sce.nameurl_courses:
             # parse cloud course materials
-            text_output = u"Parsing cloud materials of : {0}".format(c)
+            text_output = u"Parsing cloud materials of:   {0}".format(c)
             self.signal_text.emit(text_output)
             cloud_trees.append(self.vc.sce.gen_cloud_tree(c, self.vc.sce.nameurl_courses[c]))
             # update local copy of one course
@@ -720,7 +775,7 @@ class UpdateDocsThread(QThread, Virtualee):
                 # update current progress
                 self.size += self.vc.sce.get_file_size(f.url)
                 self.emit(SIGNAL('setsize(int)'), self.size)
-                text_output = "Downloaded {0}".format(f.name)
+                text_output = "Downloaded:   {0}".format(f.name)
                 self.signal_text.emit(text_output)
         else:
             # downloads materials in case don't exist in current copy
@@ -737,7 +792,7 @@ class UpdateDocsThread(QThread, Virtualee):
                     # update current progress
                     self.size += self.vc.sce.get_file_size(f.url)
                     self.emit(SIGNAL('setsize(int)'), self.size)
-                    text_output = "Downloaded {0}".format(f.name)
+                    text_output = "Downloaded:   {0}".format(f.name)
                     self.signal_text.emit(text_output)
 
                 else:
@@ -751,7 +806,7 @@ class UpdateDocsThread(QThread, Virtualee):
                         # update current progress
                         self.size += cloud_file_size
                         self.emit(SIGNAL('setsize(int)'), self.size)
-                        text_output = "Downloaded {0}".format(f.name)
+                        text_output = "Downloaded:   {0}".format(f.name)
                         self.signal_text.emit(text_output)
 
         # does the same for next level of subdirectories
@@ -936,6 +991,19 @@ class DownloadDialog(QDialog, down_prog.Ui_Dialog):
 
 #############################################################################
 # Contact dialog
+class ReleaseDialog(QDialog, release.Ui_Dialog):
+    def __init__(self, parent=None):
+        super(ReleaseDialog, self).__init__(parent)
+        self.setupUi(self)
+
+    def set_msg(self, msg):
+        self.lastrelease_msg.setText(msg)
+
+#############################################################################
+
+
+#############################################################################
+# Contact dialog
 class AboutDialog(QDialog, about.Ui_Dialog):
     def __init__(self, parent=None):
         super(AboutDialog, self).__init__(parent)
@@ -945,7 +1013,7 @@ class AboutDialog(QDialog, about.Ui_Dialog):
         self.image = QPixmap(about_img_path)
         self.virtualee_img.setPixmap(self.image)
         # contact
-        self.info.setText("\nVirtualee 2.0\n\n"
+        self.info.setText("\nVirtualee 2.1\n\n"
                           "If you find bugs, have comments or\n"
                           " questions please send an email to\n"
                           "virtualeecr@gmail.com\n"
