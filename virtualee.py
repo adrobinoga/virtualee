@@ -100,6 +100,7 @@ elif os.name == 'posix':
     default_local_docs_name = "eie-virtual"
     default_local_docs_parent = os.environ['HOME']
 
+    # it's not necessary for deb package
     # if getattr(sys, 'frozen', False):
     #     # is running in bundle
     #     cur_path = sys.executable
@@ -121,7 +122,8 @@ else:
 conf_params = {'username': '',
                'username_empleo': '',
                'local_eie': '',
-               'check_time': 20}
+               'check_time': 20,
+               'dont_check_release': ''}
 
 
 def set_conf_val(name, value):
@@ -159,10 +161,9 @@ def get_conf_val(name):
 
 
 #############################################################################
-# Check for last release
+# Get last release of virtualee
 
 last_release_url = 'https://api.github.com/repos/adrobinoga/virtualee/releases'
-
 
 def get_last_release():
     """
@@ -172,7 +173,6 @@ def get_last_release():
     rs = requests.get(last_release_url).json()
     last_release = rs[0]['tag_name']
     return last_release
-
 #############################################################################
 
 
@@ -196,8 +196,6 @@ def setup():
     curr_local_eie = get_conf_val('local_eie')
     if not os.path.exists(curr_local_eie):
         os.makedirs(curr_local_eie)
-
-
 #############################################################################
 
 
@@ -297,16 +295,6 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         except:
             print "Couldn't check for new versions"
 
-    def done_empleo_log(self):
-        """
-        Must be called after a successful login on eie-empleo, closes login dialog an refresh
-        job announcements.
-        :return: None.
-        """
-        self.empleod.close()
-        self.refresh_anns_empleo()
-        self.empleo_lastcheck = time.time()
-
     def sign_in_empleo(self):
         """
         Must be called to show a dialog where the user may enter his credentials.
@@ -317,6 +305,81 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         self.empleod.show()
 
         self.connect(self.empleod, SIGNAL("logged_empleo()"), self.done_empleo_log)
+
+    def log_in(self):
+        """
+        Signs in to eie-virtual site with a pass/user previously set.
+        :return: Boolean, True if sign-in was successful.
+        """
+        self.fullname = self.sce.log_in()
+        # full name of user is used to check if we are logged in
+        if self.fullname:
+            return True
+        else:
+            return False
+
+    def done_empleo_log(self):
+        """
+        Must be called after a successful login on eie-empleo, closes login dialog an refresh
+        job announcements.
+        :return: None.
+        """
+        self.empleod.close()
+        self.refresh_anns_empleo()
+        self.empleo_lastcheck = time.time()
+
+    def sign_out(self):
+        """
+        Deletes pass/user and shows sign-in dialog.
+        :return: None.
+        """
+        # erase user and keyring
+        try:
+            keyring.delete_password("eie-virtual", get_conf_val('username'))
+            set_conf_val('username', '')
+            self.sce.set_cred("", "")
+        except keyring.errors.PasswordDeleteError as err:
+            None
+
+        try:
+            keyring.delete_password("eie-empleo", get_conf_val('username_empleo'))
+            set_conf_val('username_empleo', '')
+            self.seie_empleo.set_creds("", "")
+        except keyring.errors.PasswordDeleteError as err:
+            None
+
+        # create new sign in dialog and wait for sign in
+        self.sign_d = SignInDialog(self)
+        self.connect(self.sign_d, SIGNAL("logged()"), self.show_main_w)
+        self.hide()
+        self.sign_d.show()
+
+    def show_main_w(self):
+        """
+        Closes sign-in dialog and setups main window.
+        :return: None.
+        """
+        self.sign_d.close()
+        self.show()
+
+        # welcome message
+        self.statusbar.showMessage("Welcome {0}".format(self.fullname))
+
+        # update news
+        self.refresh_lists()
+        self.updatetabs()
+        self.reset_jobs_prompt()
+
+    def center(self):
+        """
+        Centers the main window.
+        :return: None.
+        """
+        frame_gm = self.frameGeometry()
+        screen = QApplication.desktop().screenNumber(QApplication.desktop().cursor().pos())
+        center_point = QApplication.desktop().screenGeometry(screen).center()
+        frame_gm.moveCenter(center_point)
+        self.move(frame_gm.topLeft())
 
     def updatetabs(self):
         """
@@ -333,6 +396,26 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
 
         elif self.tab_eie.isVisible():
             self.refresh_anns_eieucr()
+
+    def refresh_lists(self):
+        """
+        Reloads contents of courses and recent-files lists.
+        :return: None.
+        """
+        # populates list of courses on main window
+        self.courses_list.clear()
+        self.sce.get_course_list()
+        self.courses_list.addItem("All")
+        for c in self.sce.name_courses:
+            self.courses_list.addItem(c)
+
+        # resize window given size of items, then show
+        self.courses_list.setMinimumWidth(self.courses_list.sizeHintForColumn(0))
+        self.courses_list.show()
+
+        # sets cursor and refresh recent files list
+        self.courses_list.setCurrentRow(0)
+        self.refresh_recent_list()
 
     @staticmethod
     def clear_layout(layout):
@@ -468,53 +551,6 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         self.layout_eie_ans.addItem(spacer_item)
         return True
 
-    def center(self):
-        """
-        Centers the main window.
-        :return: None.
-        """
-        frame_gm = self.frameGeometry()
-        screen = QApplication.desktop().screenNumber(QApplication.desktop().cursor().pos())
-        center_point = QApplication.desktop().screenGeometry(screen).center()
-        frame_gm.moveCenter(center_point)
-        self.move(frame_gm.topLeft())
-
-    def show_main_w(self):
-        """
-        Closes sign-in dialog and setups main window.
-        :return: None.
-        """
-        self.sign_d.close()
-        self.show()
-
-        # welcome message
-        self.statusbar.showMessage("Welcome {0}".format(self.fullname))
-
-        # update news
-        self.refresh_lists()
-        self.updatetabs()
-        self.reset_jobs_prompt()
-
-    def refresh_lists(self):
-        """
-        Reloads contents of courses and recent-files lists.
-        :return: None.
-        """
-        # populates list of courses on main window
-        self.courses_list.clear()
-        self.sce.get_course_list()
-        self.courses_list.addItem("All")
-        for c in self.sce.name_courses:
-            self.courses_list.addItem(c)
-
-        # resize window given size of items, then show
-        self.courses_list.setMinimumWidth(self.courses_list.sizeHintForColumn(0))
-        self.courses_list.show()
-
-        # sets cursor and refresh recent files list
-        self.courses_list.setCurrentRow(0)
-        self.refresh_recent_list()
-
     def refresh_recent_list(self):
         """
         Loads contents of recent-files list from history file.
@@ -618,32 +654,6 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         self.down_diag.update_info.append(text_out)
         self.down_diag.update_info.show()
 
-    def sign_out(self):
-        """
-        Deletes pass/user and shows sign-in dialog.
-        :return: None.
-        """
-        # erase user and keyring
-        try:
-            keyring.delete_password("eie-virtual", get_conf_val('username'))
-            set_conf_val('username', '')
-            self.sce.set_cred("", "")
-        except keyring.errors.PasswordDeleteError as err:
-            None
-
-        try:
-            keyring.delete_password("eie-empleo", get_conf_val('username_empleo'))
-            set_conf_val('username_empleo', '')
-            self.seie_empleo.set_creds("", "")
-        except keyring.errors.PasswordDeleteError as err:
-            None
-
-        # create new sign in dialog and wait for sign in
-        self.sign_d = SignInDialog(self)
-        self.connect(self.sign_d, SIGNAL("logged()"), self.show_main_w)
-        self.hide()
-        self.sign_d.show()
-
     def showabout(self):
         """
         Shows about dialog.
@@ -657,18 +667,6 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         :return: None.
         """
         self.pref.show()
-
-    def log_in(self):
-        """
-        Signs in to eie-virtual site with a pass/user previously set.
-        :return: Boolean, True if sign-in was successful.
-        """
-        self.fullname = self.sce.log_in()
-        # full name of user is used to check if we are logged in
-        if self.fullname:
-            return True
-        else:
-            return False
 
     def closed_release_diag(self):
         """
@@ -685,7 +683,6 @@ class Virtualee(QMainWindow, virtualee_gui.Ui_MainWindow):
         :return: None.
         """
         set_conf_val('dont_check_release', '')
-        
 #############################################################################
 
 
@@ -990,21 +987,26 @@ class DownloadDialog(QDialog, down_prog.Ui_Dialog):
 
 
 #############################################################################
-# Contact dialog
+# Show last available version - dialog
 class ReleaseDialog(QDialog, release.Ui_Dialog):
     def __init__(self, parent=None):
         super(ReleaseDialog, self).__init__(parent)
         self.setupUi(self)
 
     def set_msg(self, msg):
+        """
+        Sets text of label lastrelease_msg.
+        :param msg: String to show.
+        :return: None
+        """
         self.lastrelease_msg.setText(msg)
-
 #############################################################################
 
 
 #############################################################################
 # Contact dialog
 class AboutDialog(QDialog, about.Ui_Dialog):
+
     def __init__(self, parent=None):
         super(AboutDialog, self).__init__(parent)
         self.setupUi(self)

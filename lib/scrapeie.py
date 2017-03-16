@@ -1,7 +1,6 @@
 import os
 import requests
 from bs4 import BeautifulSoup
-from shutil import copyfileobj
 import verctrl
 
 urleie = "http://cursos.eie.ucr.ac.cr/"
@@ -322,4 +321,3 @@ class ScrapEmpleo:
             anns += [link_refact(n.a, url_empleo)]
         return anns
 #############################################################################
-
